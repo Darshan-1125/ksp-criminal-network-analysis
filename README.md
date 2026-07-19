@@ -1,10 +1,96 @@
-# Karnataka Crime GPT — Build Contract & Team Prompts
+# Karnataka Crime GPT — Criminal Network & Trend Intelligence Dashboard
 
-Tech stack: React.js + Tailwind CSS, FastAPI, LangChain/LangGraph, PostgreSQL (+ pgvector), ChatGPT API
-Timeline: ~24 hours | Repo: single monorepo, all 3 push to same repo
-Split: Member 1 = Backend/DB owner, Member 2 = AI/LangChain owner, Member 3 = Frontend owner
+An AI-powered conversational platform designed for analyzing synthetic crime datasets from Karnataka. It uses a LangGraph-based multi-agent routing pipeline, PostgreSQL with pgvector for semantic search, and an interactive React frontend showcasing accomplice networks and crime trends.
 
 ---
+
+## 🚀 Quick Start Guide
+
+This project is organized as a monorepo containing a FastAPI backend and a Vite+React frontend.
+
+### Prerequisites
+
+Before setting up, ensure you have the following installed:
+* **Python 3.10+**
+* **Node.js 18+ & npm**
+* **PostgreSQL** with the `pgvector` extension enabled
+
+---
+
+### 1. Backend Setup
+
+1. **Navigate to the backend directory:**
+   ```bash
+   cd backend
+   ```
+
+2. **Create and activate a Python virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables:**
+   Copy the example environment file and update it with your database connection details and OpenAI API key:
+   ```bash
+   cp .env.example .env
+   ```
+   Open `backend/.env` and update:
+   * `DATABASE_URL`: Your PostgreSQL connection URI (e.g., `postgresql://postgres:password@localhost:5432/ksp_crime`)
+   * `OPENAI_API_KEY`: Your OpenAI API key (required for LangGraph embeddings and RAG agent)
+
+5. **Initialize and Seed the Database:**
+   Ensure PostgreSQL is running and your database is created. Then, run the seed script to set up the schema and insert 500+ synthetic crime records:
+   ```bash
+   python -m app.data.seed
+   ```
+
+6. **Start the FastAPI server:**
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+   The backend will be running on `http://127.0.0.1:8000`.
+
+---
+
+### 2. Frontend Setup
+
+1. **Navigate to the frontend directory:**
+   ```bash
+   cd ../frontend
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start the React development server:**
+   ```bash
+   npm run dev
+   ```
+   The frontend application will be running on `http://localhost:5173` (or the port specified by Vite). Open this URL in your browser to interact with the dashboard.
+
+---
+
+## 🛠️ Main Features
+
+* **Conversational AI Chat**: Query crime data using natural language (supports English and Kannada).
+* **Multi-Agent Orchestration**: Powered by LangGraph to route queries (Structured Search, pgvector Semantic Search, Network Graphs, or Crime Trends).
+* **Accomplice Network Analysis**: View interactive, force-directed graphs showing connections between criminals, locations, and cases.
+* **Crime Analytics & Trends**: Visualize crime distribution and aggregates in clean, interactive charts.
+* **Factual Citations**: The AI cites actual FIR numbers for every claim made. Click on citations to open detailed case cards.
+* **PDF Export**: Generate and download professional PDF transcripts of chat history client-side.
+* **Voice Search**: Hands-free queries using browser-native Speech-to-Text.
+
+---
+
+## 📋 Build Contract & Team Prompts
 
 ## 0. Repo structure (fixed — everyone follows this)
 
