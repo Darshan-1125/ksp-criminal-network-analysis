@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, MapPin, ShieldAlert, Users, FileText, Activity } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function CaseDetailModal({ caseId, onClose, language }) {
+  const { apiFetch } = useAuth();
   const [caseData, setCaseData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,7 +15,7 @@ export default function CaseDetailModal({ caseId, onClose, language }) {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/cases/${caseId}`);
+        const res = await apiFetch(`/api/cases/${caseId}`);
         if (!res.ok) {
           throw new Error('Failed to fetch case details');
         }
@@ -28,7 +30,7 @@ export default function CaseDetailModal({ caseId, onClose, language }) {
     };
 
     fetchCaseDetails();
-  }, [caseId, language]);
+  }, [caseId, language, apiFetch]);
 
   if (!caseId) return null;
 
