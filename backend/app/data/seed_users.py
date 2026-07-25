@@ -1,14 +1,12 @@
 import sys
 import os
-from passlib.context import CryptContext
 
 # Adjust sys.path to backend directory
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from app.db import engine, SessionLocal, Base
 from app.models import User
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from app.services.auth_service import get_password_hash
 
 DEMO_USERS = [
     {
@@ -59,7 +57,7 @@ def seed_users():
         
         for user_data in DEMO_USERS:
             existing = db.query(User).filter(User.username == user_data["username"]).first()
-            hashed_pwd = pwd_context.hash(user_data["password"])
+            hashed_pwd = get_password_hash(user_data["password"])
             if existing:
                 existing.password_hash = hashed_pwd
                 existing.role = user_data["role"]
