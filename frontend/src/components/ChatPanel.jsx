@@ -1,17 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, MicOff, Globe, Download, Shield } from 'lucide-react';
+import { Send, Mic, MicOff, Globe, Download, Shield, History } from 'lucide-react';
+import SessionHistory from './SessionHistory';
 
 export default function ChatPanel({
   messages,
   onSendMessage,
+  onShowMore,
   isLoading,
   language,
   setLanguage,
   onCitationClick,
-  onExportPDF
+  onExportPDF,
+  isPolicymaker = false,
+  sessions = [],
+  currentSessionId,
+  onSelectSession,
+  onNewSession,
+  onDeleteSession,
+  isLoadingSession
 }) {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
 
@@ -83,11 +93,10 @@ export default function ChatPanel({
     formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     formatted = formatted.replace(/\n/g, '<br/>');
 
-    // Parse text and make FIRs clickable if they match citation list
-    if (citations && citations.length > 0) {
+    // Parse text and make FIRs clickable if not policymaker and matching citation list
+    if (!isPolicymaker && citations && citations.length > 0) {
       citations.forEach((cit) => {
         const firNum = cit.fir_number;
-        // Case insensitive replacement for case number with a link
         const regex = new RegExp(`(${firNum}|FIR\\s+${firNum})`, 'gi');
         formatted = formatted.replace(
           regex,
@@ -96,11 +105,11 @@ export default function ChatPanel({
       });
     }
 
-    // Return HTML safely by catching clicks in the container
     return (
       <div 
         dangerouslySetInnerHTML={{ __html: formatted }} 
         onClick={(e) => {
+          if (isPolicymaker) return;
           const chip = e.target.closest('.citation-chip');
           if (chip) {
             const fir = chip.getAttribute('data-fir');
@@ -123,6 +132,14 @@ export default function ChatPanel({
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button 
+            className={`lang-toggle-btn history-toggle-btn ${showHistory ? 'active' : ''}`}
+            onClick={() => setShowHistory(!showHistory)}
+            title="Chat History"
+          >
+            <History size={14} />
+            <span>{language === 'kn' ? 'ಇತಿಹಾಸ' : 'History'}</span>
+          </button>
+          <button 
             className={`lang-toggle-btn ${language === 'kn' ? 'active' : ''}`}
             onClick={() => setLanguage(language === 'en' ? 'kn' : 'en')}
           >
@@ -138,8 +155,28 @@ export default function ChatPanel({
         </div>
       </div>
 
-      {/* Messages Window */}
-      <div className="chat-messages-container">
+      {/* Conditionally show Session History drawer or Messages Window */}
+      {showHistory ? (
+        <SessionHistory
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          onSelectSession={(sId) => {
+            onSelectSession(sId);
+            setShowHistory(false);
+          }}
+          onNewSession={() => {
+            onNewSession();
+            setShowHistory(false);
+          }}
+          onDeleteSession={onDeleteSession}
+          isLoadingSession={isLoadingSession}
+          language={language}
+          onClose={() => setShowHistory(false)}
+        />
+      ) : (
+        <>
+          {/* Messages Window */}
+          <div className="chat-messages-container">
         {messages.length === 0 ? (
           <div className="placeholder-view">
             <Shield size={40} className="placeholder-icon" />
@@ -163,8 +200,8 @@ export default function ChatPanel({
                 {formatContent(msg.content, msg.citations)}
               </div>
               
-              {/* Citations List Below Bubble if not highlighted inline */}
-              {msg.role === 'assistant' && msg.citations && msg.citations.length > 0 && (
+              {/* Citations List Below Bubble if not policymaker */}
+              {!isPolicymaker && msg.role === 'assistant' && msg.citations && msg.citations.length > 0 && (
                 <div className="citations-list">
                   {msg.citations.map((cit, cIdx) => (
                     <button
@@ -178,6 +215,46 @@ export default function ChatPanel({
                   ))}
                 </div>
               )}
+
+              {/* Show More Button if results are truncated */}
+              {(() => {
+                const totalCount = msg.total_count || 0;
+                const shownCount = msg.shown_count || msg.returned_count || 0;
+                const hasMore = msg.role === 'assistant' && totalCount > 0 && shownCount < totalCount;
+                if (!hasMore) return null;
+                const remaining = totalCount - shownCount;
+                const nextBatchSize = Math.min(15, remaining);
+
+                return (
+                  <div style={{ marginTop: '10px' }}>
+                    <button
+                      className="btn-secondary show-more-btn"
+                      onClick={() => onShowMore && onShowMore(msg, idx)}
+                      disabled={isLoading}
+                      style={{
+                        fontSize: '12px',
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        background: 'rgba(0, 242, 254, 0.12)',
+                        border: '1px solid rgba(0, 242, 254, 0.35)',
+                        color: 'var(--accent-cyan)',
+                        fontWeight: 600
+                      }}
+                    >
+                      <span>
+                        {language === 'kn'
+                          ? `ಮತ್ತಷ್ಟು ${nextBatchSize} ಪ್ರಕರಣಗಳನ್ನು ತೋರಿಸಿ (${shownCount} / ${totalCount})`
+                          : `Show ${nextBatchSize} more (${shownCount} of ${totalCount} shown)`
+                        }
+                      </span>
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           ))
         )}
@@ -221,6 +298,7 @@ export default function ChatPanel({
           >
             {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
+
           <button
             type="submit"
             className="send-btn"
@@ -230,6 +308,9 @@ export default function ChatPanel({
           </button>
         </form>
       </div>
-    </div>
-  );
+    </>
+  )}
+</div>
+);
 }
+

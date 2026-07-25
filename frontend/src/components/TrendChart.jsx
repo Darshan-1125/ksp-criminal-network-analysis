@@ -79,6 +79,11 @@ export default function TrendChart({ payload, language }) {
         title: language === 'kn' ? 'ಅಪರಾಧದ ವಿಧಗಳ ವರ್ಗೀಕರಣ' : 'Cases by Crime Type',
         icon: <PieIcon size={16} className="header-logo" />
       };
+    } else if (group_by === 'status') {
+      return {
+        title: language === 'kn' ? 'ಪ್ರಕರಣಗಳ ಸ್ಥಿತಿಯ ವರ್ಗೀಕರಣ' : 'Cases by Status',
+        icon: <BarChart2 size={16} className="header-logo" />
+      };
     } else {
       return {
         title: language === 'kn' ? 'ತಿಂಗಳವಾರು ಅಪರಾಧ ಪ್ರವೃತ್ತಿ' : 'Monthly Crime Timeline',
@@ -100,10 +105,10 @@ export default function TrendChart({ payload, language }) {
 
       <div className="chart-wrapper">
         <ResponsiveContainer width="100%" height="100%">
-          {group_by === 'district' ? (
+          {group_by === 'district' || group_by === 'status' ? (
             <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="key" angle={-45} textAnchor="end" height={60} />
+              <XAxis dataKey="key" angle={group_by === 'status' ? 0 : -45} textAnchor={group_by === 'status' ? 'middle' : 'end'} height={60} />
               <YAxis allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="count" name={language === 'kn' ? 'ಪ್ರಕರಣಗಳ ಸಂಖ್ಯೆ' : 'Case Count'} radius={[4, 4, 0, 0]}>

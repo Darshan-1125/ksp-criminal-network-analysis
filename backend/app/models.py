@@ -120,8 +120,10 @@ class CaseEmbedding(Base):
 class ChatSession(Base):
     __tablename__ = 'chat_sessions'
     id = Column(UUIDType, primary_key=True, default=lambda: str(uuid.uuid4()) if not IS_POSTGRES else uuid.uuid4())
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+    user = relationship("User", backref="chat_sessions")
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
 
 class ChatMessage(Base):
@@ -136,3 +138,29 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     session = relationship("ChatSession", back_populates="messages")
+
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    password_hash = Column(Text, nullable=False)
+    role = Column(String(30), nullable=False)  # 'investigator' | 'analyst' | 'supervisor' | 'policymaker'
+    full_name = Column(String(150), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class AuditLog(Base):
+    __tablename__ = 'audit_logs'
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    username = Column(String(50), nullable=True)
+    role = Column(String(30), nullable=True)
+    method = Column(String(10), nullable=False)
+    endpoint = Column(Text, nullable=False)
+    status_code = Column(Integer, nullable=False)
+    query_text = Column(Text, nullable=True)
+    returned_records = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", backref="audit_logs")
+
+
