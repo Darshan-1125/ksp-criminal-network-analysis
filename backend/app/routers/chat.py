@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from langchain_openai import OpenAIEmbeddings
 
+from sqlalchemy import or_
 from app.db import get_db_session
 from app.models import ChatSession, ChatMessage, FIRCase, CaseEmbedding, AuditLog
 from app.services.langgraph_router import process_chat_message, clear_session_memory
@@ -172,7 +173,9 @@ def chat_endpoint(
         session_uuid = session_id
 
     try:
-        session_obj = db.query(ChatSession).filter(ChatSession.id == session_uuid).first()
+        session_obj = db.query(ChatSession).filter(
+            or_(ChatSession.id == session_uuid, ChatSession.id == str(session_id))
+        ).first()
         if not session_obj:
             session_obj = ChatSession(id=session_uuid, user_id=user_id)
             db.add(session_obj)
@@ -344,6 +347,7 @@ def delete_session(
     """
     Deletes a chat session and all associated messages belonging to the current user.
     Verifies user ownership via JWT token and logs audit trail for law enforcement compliance.
+    Supports both PostgreSQL (UUID type) and SQLite (String type) column matches.
     """
     try:
         try:
@@ -351,8 +355,33 @@ def delete_session(
         except ValueError:
             session_uuid = session_id
 
-        session_obj = db.query(ChatSession).filter(ChatSession.id == session_uuid).first()
+        # Query session using both UUID object and string for cross-database compatibility
+        session_obj = db.query(ChatSession).filter(
+            or_(ChatSession.id == session_uuid, ChatSession.id == str(session_id))
+        ).first()
+
         if not session_obj:
+            # Fallback cleanup if session_obj row missing but messages exist
+            deleted_msgs = db.query(ChatMessage).filter(
+                or_(ChatMessage.session_id == session_uuid, ChatMessage.session_id == str(session_id))
+            ).delete(synchronize_session=False)
+            
+            if deleted_msgs > 0:
+                audit_entry = AuditLog(
+                    user_id=current_user.get("id"),
+                    username=current_user.get("username"),
+                    role=current_user.get("role"),
+                    method="DELETE",
+                    endpoint=f"/api/chat/sessions/{session_id}",
+                    status_code=200,
+                    query_text=f"DELETED SESSION {session_id}",
+                    returned_records={"session_id": str(session_id), "action": "delete_session"}
+                )
+                db.add(audit_entry)
+                db.commit()
+                clear_session_memory(str(session_id))
+                return {"status": "success", "message": f"Session '{session_id}' deleted."}
+            
             raise HTTPException(status_code=404, detail="Session not found")
 
         # Verify session ownership
@@ -360,7 +389,9 @@ def delete_session(
             raise HTTPException(status_code=403, detail="Access denied to session")
 
         # Delete messages and session
-        db.query(ChatMessage).filter(ChatMessage.session_id == session_uuid).delete()
+        db.query(ChatMessage).filter(
+            or_(ChatMessage.session_id == session_uuid, ChatMessage.session_id == str(session_id))
+        ).delete(synchronize_session=False)
         db.delete(session_obj)
 
         # Audit log entry for compliance
