@@ -167,11 +167,46 @@ CANONICAL_CRIME_TYPES = [
     "Extortion", "Burglary", "Kidnapping", "Drug Trafficking", "Cheating", "Riot"
 ]
 
+UNSUPPORTED_SCRIPT_REGEX = re.compile(
+    r'[\u0C00-\u0C7F\u0900-\u097F\u0B80-\u0BFF\u0D00-\u0D7F\u0980-\u09FF\u0A80-\u0AFF]'
+)  # Telugu, Devanagari (Hindi/Marathi), Tamil, Malayalam, Bengali, Gujarati
+
+def is_unsupported_language(text: str) -> bool:
+    if not text:
+        return False
+    return bool(UNSUPPORTED_SCRIPT_REGEX.search(text))
+
+KANNADA_DISTRICT_MAP = {
+    "ಮೈಸೂರು": "Mysuru", "ಮೈಸೂರಿನಲ್ಲಿ": "Mysuru", "ಮೈಸೂರಿನ": "Mysuru",
+    "ಬೆಂಗಳೂರು": "Bengaluru", "ಬೆಂಗಳೂರಿನಲ್ಲಿ": "Bengaluru", "ಬೆಂಗಳೂರಿನ": "Bengaluru",
+    "ಬೆಳಗಾವಿ": "Belagavi", "ಹುಬ್ಬಳ್ಳಿ": "Hubballi", "ಧಾರವಾಡ": "Dharwad",
+    "ಮಂಗಳೂರು": "Mangaluru", "ಮಂಡ್ಯ": "Mandya", "ಕೋಲಾರ": "Kolar",
+    "ಉಡುಪಿ": "Udupi", "ತುಮಕೂರು": "Tumakuru", "ಬೀದರ್": "Bidar",
+    "ಕಲಬುರಗಿ": "Kalaburagi", "ಯಾದಗಿರಿ": "Yadgir", "ಚಾಮರಾಜನಗರ": "Chamarajanagar",
+    "ಕೊಪ್ಪಳ": "Koppal", "ಹಾವೇರಿ": "Haveri", "ಗದಗ": "Gadag",
+    "ಬಾಗಲಕೋಟೆ": "Bagalkot", "ವಿಜಯಪುರ": "Vijayapura", "ಚಿತ್ರದುರ್ಗ": "Chitradurga",
+    "ದಾವಣಗೆರೆ": "Davanagere", "ಶಿವಮೊಗ್ಗ": "Shivamogga", "ರಾಮನಗರ": "Ramanagara",
+    "ಚಿಕ್ಕಬಳ್ಳಾಪುರ": "Chikkaballapur", "ಬಳ್ಳಾರಿ": "Ballari"
+}
+
+KANNADA_CRIME_MAP = {
+    "ಕಳ್ಳತನ": "Theft", "ಕಳ್ಳತನದ": "Theft", "ಕದ್ದ": "Theft",
+    "ದರೋಡೆ": "Robbery", "ಕೊಲೆ": "Murder", "ದಾಳಿ": "Assault", "ಹಲ್ಲೆ": "Assault",
+    "ಸೈಬರ್": "Cybercrime", "ಆನ್‌ಲೈನ್": "Cybercrime", "ಸುಲಿಗೆ": "Extortion",
+    "ಕನ್ನಗಳವು": "Burglary", "ಅಪಹರಣ": "Kidnapping", "ವಂಚನೆ": "Cheating", "ಗಲಭೆ": "Riot"
+}
+
 def infer_and_normalize_crime_type(text: Optional[str]) -> Optional[str]:
     """Infers or normalizes raw crime string/text into canonical database crime_type."""
     if not text:
         return None
     text_lower = text.lower()
+
+    # Check Kannada crime terms first
+    for kn_term, canonical in KANNADA_CRIME_MAP.items():
+        if kn_term in text:
+            return canonical
+
     sorted_keys = sorted(CRIME_TYPE_MAPPING.keys(), key=len, reverse=True)
     for key in sorted_keys:
         if key in text_lower:
@@ -183,26 +218,49 @@ def infer_and_normalize_crime_type(text: Optional[str]) -> Optional[str]:
 
 def heuristic_classify_and_extract(message: str, session_id: str = None) -> dict:
     """Perform rule-based classification and extraction as a fallback or pre-pass."""
+    if is_unsupported_language(message):
+        filters = {
+            "crime_type": None,
+            "district": None,
+            "status": None,
+            "date_from": None,
+            "date_to": None,
+            "accused_name": None,
+            "is_unsupported_language": True
+        }
+        return {
+            "classification": "structured",
+            "filters": filters,
+            "entity": {"type": None, "query": None, "id": None},
+            "is_trend": False
+        }
+
     msg_lower = message.lower()
     
-    # 1. District heuristic
-    districts = [
-        "mysuru", "mysore", "bengaluru", "bangalore", "belagavi", "belgaum", 
-        "hubballi", "hubli", "dharwad", "mangaluru", "mangalore", "mandya", 
-        "kolar", "udupi", "tumakuru", "tumkur", "bidar", "kalaburagi", "gulbarga", 
-        "yadgir", "chamarajanagar", "koppal", "haveri", "gadag", "bagalkot", 
-        "vijayapura", "bijapur", "chitradurga", "davanagere", "shivamogga", "shimoga", 
-        "ramanagara", "chikkaballapur", "ballari", "bellary", "chamarajanagara"
-    ]
+    # 1. District heuristic (English + Kannada)
     found_district = None
-    for d in districts:
-        if d in msg_lower:
-            found_district = d.capitalize()
-            if found_district == "Mysore":
-                found_district = "Mysuru"
-            elif found_district == "Bangalore":
-                found_district = "Bengaluru"
+    for kn_dist, en_dist in KANNADA_DISTRICT_MAP.items():
+        if kn_dist in message:
+            found_district = en_dist
             break
+
+    if not found_district:
+        districts = [
+            "mysuru", "mysore", "bengaluru", "bangalore", "belagavi", "belgaum", 
+            "hubballi", "hubli", "dharwad", "mangaluru", "mangalore", "mandya", 
+            "kolar", "udupi", "tumakuru", "tumkur", "bidar", "kalaburagi", "gulbarga", 
+            "yadgir", "chamarajanagar", "koppal", "haveri", "gadag", "bagalkot", 
+            "vijayapura", "bijapur", "chitradurga", "davanagere", "shivamogga", "shimoga", 
+            "ramanagara", "chikkaballapur", "ballari", "bellary", "chamarajanagara"
+        ]
+        for d in districts:
+            if d in msg_lower:
+                found_district = d.capitalize()
+                if found_district in ["Mysore", "Mysuru"]:
+                    found_district = "Mysuru"
+                elif found_district in ["Bangalore", "Bengaluru"]:
+                    found_district = "Bengaluru"
+                break
             
     # 2. Crime type heuristic
     found_crime = infer_and_normalize_crime_type(message)
@@ -305,6 +363,23 @@ def heuristic_classify_and_extract(message: str, session_id: str = None) -> dict
 
 def llm_classify_and_extract(message: str, session_id: str = None) -> dict:
     """Use ChatGPT to classify the intent and extract structured filters/entities."""
+    if is_unsupported_language(message):
+        filters = {
+            "crime_type": None,
+            "district": None,
+            "status": None,
+            "date_from": None,
+            "date_to": None,
+            "accused_name": None,
+            "is_unsupported_language": True
+        }
+        return {
+            "classification": "structured",
+            "filters": filters,
+            "entity": {"type": None, "query": None, "id": None},
+            "is_trend": False
+        }
+
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if not openai_api_key:
         return heuristic_classify_and_extract(message, session_id)
@@ -314,6 +389,11 @@ def llm_classify_and_extract(message: str, session_id: str = None) -> dict:
     system_prompt = (
         "You are an AI router for Karnataka Crime GPT.\n"
         "Your task is to classify the user's message and extract query filters and entities.\n\n"
+        "LANGUAGE SUPPORT & TRANSLATION:\n"
+        "- The application supports English and Kannada (ಕನ್ನಡ).\n"
+        "- If the user query is written in Kannada (or contains Kannada terms), translate all extracted entity names, district names, and crime types to canonical English values (e.g. 'ಮೈಸೂರು' -> district: 'Mysuru', 'ಕಳ್ಳತನ' -> crime_type: 'Theft', 'ದರೋಡೆ' -> crime_type: 'Robbery', 'ಕೊಲೆ' -> crime_type: 'Murder', 'ಬೆಂಗಳೂರು' -> district: 'Bengaluru').\n"
+        "- If the user query is written in an unsupported script/language other than English or Kannada (e.g. Telugu, Hindi, Tamil, Malayalam, Bengali, Marathi, etc.), set filters.is_unsupported_language = true.\n"
+        "- If the user query consists of random gibberish or unparseable text with no identifiable crime investigation intent or filters, set filters.unparseable_query = true.\n\n"
         "Classifications:\n"
         "- `graph`: if the user is asking about network, connections, accomplices, links between accused, location connections, or cases connected/linked/related to an entity.\n"
         "- `semantic`: if the user is looking for cases based on textual descriptions, MO patterns, narrative similarities, or 'similar to FIR X' with NO structured attribute filters (district, status, dates).\n"
@@ -334,7 +414,9 @@ def llm_classify_and_extract(message: str, session_id: str = None) -> dict:
         "    \"status\": \"string or null\" (e.g., \"closed\", \"open\", \"under_investigation\", \"pending\"),\n"
         "    \"date_from\": \"YYYY-MM-DD or null\",\n"
         "    \"date_to\": \"YYYY-MM-DD or null\",\n"
-        "    \"accused_name\": \"string or null\"\n"
+        "    \"accused_name\": \"string or null\",\n"
+        "    \"is_unsupported_language\": true | false,\n"
+        "    \"unparseable_query\": true | false\n"
         "  },\n"
         "  \"entity\": {\n"
         "    \"type\": \"accused\" | \"location\" | null,\n"
@@ -370,6 +452,11 @@ def llm_classify_and_extract(message: str, session_id: str = None) -> dict:
         entity = parsed.get("entity", {})
         filters = parsed.get("filters", {})
         classification = parsed.get("classification", "structured")
+
+        # If text does not contain unsupported script but LLM marked is_unsupported_language on Latin text, flip it to unparseable_query
+        if not is_unsupported_language(message) and filters.get("is_unsupported_language"):
+            filters["is_unsupported_language"] = False
+            filters["unparseable_query"] = True
 
         # Check for explicit numeric Accused ID pattern override
         accused_id_match = re.search(r'\b(?:accused\s+(?:id|#)?|accused_id\s*=?)\s*#?\s*(\d+)\b', message, re.IGNORECASE)
@@ -542,6 +629,40 @@ def classify_node(state: AgentState) -> dict:
 def structured_search_node(state: AgentState) -> dict:
     """Node that performs structured case search."""
     filters = dict(state.get("filters", {}))
+    msg = state.get("message", "")
+
+    # 1. Unsupported language check
+    if filters.get("is_unsupported_language") or is_unsupported_language(msg):
+        filters["is_unsupported_language"] = True
+        return {
+            "retrieved_cases": [],
+            "total_count": 0,
+            "returned_count": 0,
+            "filters": filters,
+            "is_trend": False
+        }
+
+    # 2. Check if any actual attribute filter or explicit browse intent exists
+    has_any_filter = bool(
+        filters.get("district") or filters.get("crime_type") or filters.get("status") or
+        filters.get("police_station") or filters.get("ipc_section") or filters.get("date_from") or
+        filters.get("date_to") or filters.get("accused_name") or state.get("is_trend")
+    )
+
+    explicit_browse_terms = ["all cases", "browse cases", "list cases", "show cases", "show all", "list all"]
+    is_explicit_browse = any(term in msg.lower() for term in explicit_browse_terms)
+
+    # If classification produced NO filters and user did not explicitly ask to browse all cases, fail honestly!
+    if not has_any_filter and not is_explicit_browse:
+        logger.info(f"Query '{msg}' produced no usable filters and is not an explicit browse request.")
+        return {
+            "retrieved_cases": [],
+            "total_count": 0,
+            "returned_count": 0,
+            "filters": {**filters, "unparseable_query": True},
+            "is_trend": False
+        }
+
     filters["offset"] = state.get("offset", 0)
     filters["limit"] = state.get("limit", 15)
     res = search_cases_structured(filters)
@@ -560,6 +681,23 @@ def perform_semantic_search_with_filters(message: str, filters: dict = None, ses
     """
     openai_api_key = os.getenv("OPENAI_API_KEY")
     filters = filters or {}
+    if filters.get("is_unsupported_language") or is_unsupported_language(message):
+        filters["is_unsupported_language"] = True
+        return {
+            "retrieved_cases": [],
+            "total_count": 0,
+            "returned_count": 0,
+            "filters": filters
+        }
+
+    if filters.get("unparseable_query"):
+        return {
+            "retrieved_cases": [],
+            "total_count": 0,
+            "returned_count": 0,
+            "filters": filters
+        }
+
     inferred_crime_type = filters.get("crime_type")
     if not inferred_crime_type:
         inferred_crime_type = infer_and_normalize_crime_type(message)

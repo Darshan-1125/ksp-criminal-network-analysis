@@ -34,6 +34,20 @@ def synthesize_answer(
         returned_count = len(retrieved_cases)
 
     if not retrieved_cases:
+        if filters and filters.get("is_unsupported_language"):
+            if language == "kn":
+                no_cases_msg = "ಈ ಭಾಷೆಗೆ ಬೆಂಬಲವಿಲ್ಲ. ಕರ್ನಾಟಕ ಕ್ರೈಮ್ GPT ಪ್ರಸ್ತುತ ಇಂಗ್ಲಿಷ್ ಮತ್ತು ಕನ್ನಡ (ಕನ್ನಡ) ಭಾಷೆಗಳನ್ನು ಬೆಂಬಲಿಸುತ್ತದೆ. ದಯವಿಟ್ಟು ಇಂಗ್ಲಿಷ್ ಅಥವಾ ಕನ್ನಡದಲ್ಲಿ ಮರುರೂಪಿಸಿ."
+            else:
+                no_cases_msg = "Language not supported. Karnataka Crime GPT currently supports English and Kannada (ಕನ್ನಡ). Please rephrase your query in English or Kannada."
+            return {"answer": no_cases_msg, "citations": []}
+
+        if filters and filters.get("unparseable_query"):
+            if language == "kn":
+                no_cases_msg = "ಈ ಪ್ರಶ್ನೆಯನ್ನು ಅರ್ಥಮಾಡಿಕೊಳ್ಳಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ — ದಯವಿಟ್ಟು ನಿರ್ದಿಷ್ಟ ಅಪರಾಧ ಮಾದರಿ (ಉದಾ. ಕಳ್ಳತನ, ದರೋಡೆ), ಜಿಲ್ಲೆ (ಉದಾ. ಮೈಸೂರು, ಬೆಂಗಳೂರು), ಅಥವಾ ಎಫ್‌ಐಆರ್ ಸಂಖ್ಯೆಯೊಂದಿಗೆ ಮರುರೂಪಿಸಿ."
+            else:
+                no_cases_msg = "Could not understand this query — please try rephrasing with a specific crime type (e.g. Theft, Robbery), district (e.g. Mysuru, Bengaluru), or case/FIR number."
+            return {"answer": no_cases_msg, "citations": []}
+
         if filters and filters.get("fir_not_found"):
             fir_num = filters["fir_not_found"]
             if language == "kn":
