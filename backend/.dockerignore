@@ -1,0 +1,33 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# Environment and secrets
+.env
+.env.local
+*.env
+
+# Local database dumps & logs
+backup.sql
+*.log
+*.sqlite
+*.db
+
+# Git & IDE metadata
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+
+# Docker specific
+Dockerfile
+.dockerignore
+docker-compose*.yml
