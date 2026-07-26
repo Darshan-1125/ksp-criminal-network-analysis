@@ -24,6 +24,10 @@ except Exception as e:
 
 app = FastAPI(title="Karnataka Crime GPT API", version="1.0.0")
 
+origins = [
+    "http://localhost:5173",
+    "https://YOUR_PROJECT.vercel.app",
+]
 # Setup CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,

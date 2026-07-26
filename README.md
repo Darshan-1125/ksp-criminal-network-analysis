@@ -94,6 +94,33 @@ Ensure you have the following installed on your system:
 
 ---
 
+### 🐳 Backend Docker Setup
+
+You can also run the backend using **Docker** or **Docker Compose**:
+
+#### Option A: Docker Compose (Backend + PostgreSQL Database)
+```bash
+cd backend
+docker-compose up --build
+```
+This builds the backend image and spins up PostgreSQL with `pgvector` pre-configured at `localhost:5432`.
+
+#### Option B: Standalone Docker Container
+```bash
+cd backend
+
+# Build Docker image
+docker build -t ksp-backend .
+
+# Run container
+docker run -d -p 8000:8000 --name ksp_backend_container \
+  -e DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:5432/ksp_crime" \
+  -e OPENAI_API_KEY="your_openai_api_key" \
+  ksp-backend
+```
+
+---
+
 ### 2. Frontend Setup
 
 1. **Navigate to the frontend directory**:
